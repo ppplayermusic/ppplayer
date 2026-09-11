@@ -53,17 +53,30 @@ cat << 'EOF' > release_1_0_3.md
 - Eliminated several IDE linter errors and cleaned up redundant files.
 EOF
 
+# Extract release notes for 1.0.4
+cat << 'EOF' > release_1_0_4.md
+### Added
+- Automated release workflow via GitHub Actions for consistent builds and code signing.
+- Official signed and notarized macOS releases now available directly on the website.
+- Added MIT License to the repository.
+
+### Fixed
+- Fixed submodule checkout configuration in CI workflows.
+EOF
+
 # Create tags
 git tag v1.0.0 066fd14
 git tag v1.0.1 82857e0
 git tag v1.0.2 bbc7ec6
 git tag v1.0.3 98d4d25
+git tag v1.0.4 HEAD
 git push --tags
 
 # Create releases
 gh release create v1.0.0 --title "v1.0.0" --notes-file release_1_0_0.md
 gh release create v1.0.1 --title "v1.0.1" --notes-file release_1_0_1.md
 gh release create v1.0.2 --title "v1.0.2" --notes-file release_1_0_2.md
+gh release create v1.0.3 --title "v1.0.3" --notes-file release_1_0_3.md
 
-# For v1.0.3 we will attach the binaries
-gh release create v1.0.3 --title "v1.0.3" --notes-file release_1_0_3.md PPPlayer-macOS.zip app/build/app/outputs/flutter-apk/app-release.apk#PPPlayer-Android.apk
+# For v1.0.4 we will attach the binaries
+gh release create v1.0.4 --title "v1.0.4" --notes-file release_1_0_4.md PPPlayer-macOS.zip app/build/app/outputs/flutter-apk/app-release.apk#PPPlayer-Android.apk

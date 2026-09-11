@@ -4,6 +4,21 @@ All notable changes to PPPlayer will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-09-11
+
+### Fixed
+- Fixed an issue on macOS where background playback would pause between songs when the app was minimized due to App Nap.
+
+## [1.0.4] - 2026-09-11
+
+### Added
+- Automated release workflow via GitHub Actions for consistent builds and code signing.
+- Official signed and notarized macOS releases now available directly on the website.
+- Added MIT License to the repository.
+
+### Fixed
+- Fixed submodule checkout configuration in CI workflows.
+
 ## [1.0.3] - 2026-09-10
 
 ### Added
