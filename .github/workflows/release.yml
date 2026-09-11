@@ -1,0 +1,353 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-test:
+    name: Validation & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Needed for comparing with previous tags
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Validate Version Matching & Build Number
+        run: |
+          # 1. Parse tag version
+          TAG_NAME="${GITHUB_REF_NAME}"
+          # Strip 'v' prefix
+          TAG_VERSION="${TAG_NAME#v}"
+          # Strip any prerelease suffix for core comparison (e.g. 1.0.4-test -> 1.0.4)
+          TAG_CORE_VERSION=$(echo "$TAG_VERSION" | cut -d'-' -f1)
+          
+          # 2. Parse pubspec.yaml version
+          cd app
+          PUBSPEC_RAW=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
+          PUBSPEC_CORE_VERSION=$(echo "$PUBSPEC_RAW" | cut -d'+' -f1)
+          PUBSPEC_BUILD_NUM=$(echo "$PUBSPEC_RAW" | cut -d'+' -f2)
+          
+          echo "Tag Core Version: $TAG_CORE_VERSION"
+          echo "Pubspec Core Version: $PUBSPEC_CORE_VERSION"
+          echo "Pubspec Build Number: $PUBSPEC_BUILD_NUM"
+          
+          if [ "$TAG_CORE_VERSION" != "$PUBSPEC_CORE_VERSION" ]; then
+            echo "::error::Tag core version ($TAG_CORE_VERSION) does not match pubspec version ($PUBSPEC_CORE_VERSION)"
+            exit 1
+          fi
+
+          # 3. Verify Android build number increases
+          # Get the highest previous tag that is not the current tag
+          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${TAG_NAME}$" | head -n 1)
+          
+          if [ -n "$PREV_TAG" ]; then
+            echo "Previous tag: $PREV_TAG"
+            PREV_PUBSPEC_RAW=$(git show "${PREV_TAG}:app/pubspec.yaml" | grep '^version: ' | sed 's/version: //')
+            PREV_BUILD_NUM=$(echo "$PREV_PUBSPEC_RAW" | cut -d'+' -f2)
+            echo "Previous Build Number: $PREV_BUILD_NUM"
+            
+            # Allow reruns of the same tag/commit (build number can be equal if it's the exact same commit being tagged)
+            # If we are tagging a NEW commit, it should strictly increase.
+            if [ "$PUBSPEC_BUILD_NUM" -lt "$PREV_BUILD_NUM" ]; then
+              echo "::error::Build number ($PUBSPEC_BUILD_NUM) is less than previous build number ($PREV_BUILD_NUM)"
+              exit 1
+            fi
+          else
+            echo "No previous tags found. Skipping build number check."
+          fi
+
+      - name: Install Dependencies
+        working-directory: app
+        run: flutter pub get
+
+      - name: Run Code Generation (if applicable)
+        working-directory: app
+        run: |
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build -d
+          fi
+
+      - name: Run Analysis
+        working-directory: app
+        run: flutter analyze
+
+      - name: Run Tests
+        working-directory: app
+        run: |
+          if [ -d "test" ] && [ "$(ls -A test)" ]; then
+            flutter test
+          else
+            echo "No tests found. Skipping."
+          fi
+
+  build-android:
+    name: Build Android APK
+    needs: validate-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Android Keystore
+        env:
+          KEYSTORE_JKS_B64: ${{ secrets.KEYSTORE_JKS_B64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_JKS_B64" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ] || [ -z "$STORE_PASSWORD" ]; then
+            echo "::error::Android signing secrets are missing. Release build must not silently use debug signing."
+            exit 1
+          fi
+          
+          mkdir -p app/android/app
+          echo "$KEYSTORE_JKS_B64" | base64 -d > app/android/app/upload-keystore.jks
+          
+          cat <<EOF > app/android/key.properties
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Install Dependencies
+        working-directory: app
+        run: flutter pub get
+
+      - name: Build Release APK
+        working-directory: app
+        run: flutter build apk --release
+
+      - name: Setup Android SDK Build-Tools for apksigner
+        uses: android-actions/setup-android@v3
+
+      - name: Verify APK Signature
+        working-directory: app
+        run: |
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_SDK_ROOT/build-tools/* | tail -1)
+          $BUILD_TOOLS_DIR/apksigner verify --print-certs build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PPPlayer-Android
+          path: app/build/app/outputs/flutter-apk/app-release.apk
+
+  build-macos:
+    name: Build macOS App
+    needs: validate-and-test
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        working-directory: app
+        run: flutter pub get
+
+      - name: Import macOS Certificate
+        env:
+          MACOS_CERTIFICATE_B64: ${{ secrets.MACOS_CERTIFICATE_B64 }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: |
+          if [ -z "$MACOS_CERTIFICATE_B64" ] || [ -z "$MACOS_CERTIFICATE_PWD" ]; then
+             echo "::error::macOS signing secrets are missing."
+             exit 1
+          fi
+          
+          CERT_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          echo -n "$MACOS_CERTIFICATE_B64" | base64 --decode -o $CERT_PATH
+          
+          security create-keychain -p "" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "" $KEYCHAIN_PATH
+
+          security import $CERT_PATH -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "" $KEYCHAIN_PATH
+          
+          # Set as default to ensure codesign picks it up
+          security list-keychains -d user -s $KEYCHAIN_PATH
+
+      - name: Build Release macOS
+        working-directory: app
+        run: flutter build macos --release
+
+      - name: Verify Advertised Architectures & Sign
+        working-directory: app/build/macos/Build/Products/Release
+        run: |
+          # The Xcode project should be handling signing if the certificate is imported correctly.
+          # Here we verify the architectures are correct (e.g. arm64 or x86_64)
+          lipo -info PPPlayer.app/Contents/MacOS/PPPlayer
+          
+          # Check codesign verification
+          codesign -dv --verbose=4 PPPlayer.app
+          
+          # Verify gatekeeper assessment (may fail on CI if strict, but good to check)
+          # spctl -a -v --type install PPPlayer.app || echo "Gatekeeper strict check failed, but signing is intact"
+
+      - name: Notarize App
+        working-directory: app/build/macos/Build/Products/Release
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+          DEVELOPER_TEAM_ID: ${{ secrets.DEVELOPER_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_ID" ] || [ -z "$APP_SPECIFIC_PASSWORD" ] || [ -z "$DEVELOPER_TEAM_ID" ]; then
+             echo "::warning::Notarization secrets missing. Skipping explicit notarize command for manual verification run."
+          else
+             # Zip app for notarization upload
+             /usr/bin/ditto -c -k --keepParent PPPlayer.app PPPlayer-Notarize.zip
+             xcrun notarytool submit PPPlayer-Notarize.zip --apple-id "$APPLE_ID" --password "$APP_SPECIFIC_PASSWORD" --team-id "$DEVELOPER_TEAM_ID" --wait
+          fi
+
+      - name: Package App (ZIP & DMG)
+        working-directory: app/build/macos/Build/Products/Release
+        run: |
+          # 1. Zip preserving bundle permissions and symlinks
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent PPPlayer.app PPPlayer-macOS.zip
+          
+          # 2. Build DMG
+          npm install -g create-dmg
+          create-dmg PPPlayer.app || true # Fallback if create-dmg fails on CI runner due to styling issues
+          mv *.dmg PPPlayer-macOS.dmg || echo "DMG creation failed"
+
+      - name: Upload macOS Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: PPPlayer-macOS-zip
+          path: app/build/macos/Build/Products/Release/PPPlayer-macOS.zip
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: PPPlayer-macOS-dmg
+          path: app/build/macos/Build/Products/Release/*.dmg
+
+  # TODO: Build Windows App (build-windows)
+  # TODO: Build Linux App (build-linux)
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-android, build-macos]
+    # IMPORTANT: Ensure this ONLY runs on actual tag pushes, not workflow_dispatch manual runs!
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Scope: only the publish job has write access to create the release
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Check Artifacts Existence
+        run: |
+          ls -R artifacts/
+          
+          # Require every expected asset to exist
+          if [ ! -f "artifacts/PPPlayer-Android/app-release.apk" ]; then
+             echo "::error::Android APK artifact is missing!"
+             exit 1
+          fi
+          
+          if [ ! -f "artifacts/PPPlayer-macOS-zip/PPPlayer-macOS.zip" ]; then
+             echo "::error::macOS ZIP artifact is missing!"
+             exit 1
+          fi
+
+      - name: Prepare Assets & Checksums
+        run: |
+          mkdir -p release-assets
+          cp artifacts/PPPlayer-Android/app-release.apk release-assets/PPPlayer-Android.apk
+          cp artifacts/PPPlayer-macOS-zip/PPPlayer-macOS.zip release-assets/PPPlayer-macOS.zip
+          
+          # Add DMG if it exists
+          if [ -n "$(ls artifacts/PPPlayer-macOS-dmg/*.dmg 2>/dev/null)" ]; then
+             cp artifacts/PPPlayer-macOS-dmg/*.dmg release-assets/
+          fi
+          
+          cd release-assets
+          shasum -a 256 * > checksums.txt
+          cat checksums.txt
+
+      - name: Extract Release Notes from CHANGELOG.md
+        id: extract_notes
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          TAG_VERSION="${TAG_NAME#v}"
+          
+          # Attempt to extract the section for this version using awk
+          # We look for "## [VERSION]" and capture until the next "## ["
+          awk -v ver="\\[$TAG_VERSION\\]" '
+            $0 ~ "^## " ver { found=1; next }
+            /^## \[/ && found { exit }
+            found { print }
+          ' CHANGELOG.md > extracted_notes.md
+          
+          # Fallback to empty if it didn't find anything, the action will use auto notes
+          cat extracted_notes.md
+
+      - name: Determine Prerelease Flag
+        id: prerelease_check
+        run: |
+          # If the tag contains a hyphen (e.g., v1.0.4-test), mark as prerelease
+          if [[ "${GITHUB_REF_NAME}" == *"-"* ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "make_latest=false" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "make_latest=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: extracted_notes.md
+          prerelease: ${{ steps.prerelease_check.outputs.is_prerelease }}
+          make_latest: ${{ steps.prerelease_check.outputs.make_latest }}
+          generate_release_notes: true # Acts as fallback if body_path is empty
+          files: |
+            release-assets/*
