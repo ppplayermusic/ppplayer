@@ -1,6 +1,6 @@
 [submodule "app"]
 	path = app
-	url = git@github.com:ppplayer-music/app.git
+	url = https://github.com/ppplayermusic/app.git
 [submodule "website"]
 	path = website
-	url = git@github.com:ppplayer-music/website.git
+	url = https://github.com/ppplayermusic/website.git
