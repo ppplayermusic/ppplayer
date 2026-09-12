@@ -1,0 +1,30 @@
+name: IndexNow Ping
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+
+jobs:
+  ping-indexnow:
+    name: Ping Search Engines
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Wait for Coolify Deployment
+        run: |
+          echo "Waiting 3 minutes for Coolify to finish deploying the live website..."
+          sleep 180
+
+      - name: Run IndexNow Script
+        working-directory: website
+        run: npm run indexnow
