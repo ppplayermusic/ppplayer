@@ -19,9 +19,7 @@ cat << 'EOF' > release_2_0_0.md
 - Improved database migration reliability.
 EOF
 
-# Create tag
+# Create tag to trigger root release workflow
+# Ensure the app repository CI has finished building and released v2.0.0 first!
 git tag v2.0.0 HEAD
 git push origin v2.0.0
-
-# Create release
-gh release create v2.0.0 --title "v2.0.0" --notes-file release_2_0_0.md PPPlayer-macOS.zip app/build/app/outputs/flutter-apk/app-release.apk#PPPlayer-Android.apk
