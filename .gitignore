@@ -1,0 +1,16 @@
+# AI test/scratch scripts
+scratch_*.py
+test_*.py
+test_*.ts
+
+# Reports and generated data
+report_*.json
+identical_report.json
+review_summary.json
+*.patch
+bugreport-*.zip
+
+# Website generated assets
+lighthouse-report.json
+screenshot.png
+download_page_*.png

@@ -7,3 +7,6 @@
 - Fixed a bug where a paused track would unexpectedly resume when handing off from foreground to PiP or background.
 - Accurate millisecond precision reporting for current track position and playback duration.
 - Eliminated several IDE linter errors and cleaned up redundant files.
+
+### Downloads
+- [Windows (Microsoft Store)](https://apps.microsoft.com/store/detail/9NKNDF67BG4X?cid=DevShareMCLPCS)

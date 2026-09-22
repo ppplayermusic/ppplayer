@@ -1,7 +1,5 @@
-#!/bin/bash
+## [2.0.0] - 2026-09-20
 
-# Extract release notes for 2.0.0
-cat << 'EOF' > release_2_0_0.md
 ### Added
 - Complete local video library and playback support with video controls and thumbnail generation.
 - Comprehensive subtitle support with customization, delay adjustment, and selection UI.
@@ -17,11 +15,5 @@ cat << 'EOF' > release_2_0_0.md
 ### Fixed
 - Fixed UI inconsistencies with tactile buttons and avatar colors.
 - Improved database migration reliability.
-EOF
 
-# Create tag
-git tag v2.0.0 HEAD
-git push origin v2.0.0
 
-# Create release
-gh release create v2.0.0 --title "v2.0.0" --notes-file release_2_0_0.md PPPlayer-macOS.zip app/build/app/outputs/flutter-apk/app-release.apk#PPPlayer-Android.apk

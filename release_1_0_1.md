@@ -16,3 +16,6 @@
 - Fixed playback state restoration after restarting the app.
 - Fixed playback pausing/stopping unexpectedly when dragging the seekbar.
 - Fixed bottom player bar rendering fully transparent and unreadable on macOS when playing music.
+
+### Downloads
+- [Windows (Microsoft Store)](https://apps.microsoft.com/store/detail/9NKNDF67BG4X?cid=DevShareMCLPCS)
