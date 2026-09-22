@@ -39,6 +39,8 @@ def get_nested_value(d, path_str, sep='.'):
         current = current[part]
     return current
 
+from deep_translator import GoogleTranslator
+
 def translate_text(text, target_lang):
     if target_lang == 'en' or target_lang not in LANG_MAP:
         return text
@@ -49,25 +51,15 @@ def translate_text(text, target_lang):
         for i, p in enumerate(placeholders):
             temp_text = temp_text.replace(p, f"__PH{i}__")
             
-        # Using translators package with bing
-        translated = ts.translate_text(temp_text, translator='bing', from_language='en', to_language=LANG_MAP[target_lang])
+        translated = GoogleTranslator(source='en', target=LANG_MAP[target_lang]).translate(temp_text)
         
         for i, p in enumerate(placeholders):
             translated = translated.replace(f"__PH{i}__", p)
             
-        time.sleep(0.5)
         return translated
     except Exception as e:
-        print(f"Error translating to {target_lang} with bing, trying google: {e}")
-        try:
-            translated = ts.translate_text(temp_text, translator='google', from_language='en', to_language=LANG_MAP[target_lang])
-            for i, p in enumerate(placeholders):
-                translated = translated.replace(f"__PH{i}__", p)
-            time.sleep(0.5)
-            return translated
-        except Exception as e2:
-            print(f"Error translating to {target_lang} with google: {e2}")
-            return text
+        print(f"Error translating to {target_lang} with google: {e}")
+        return text
 
 def main():
     print("Checking locales...")

@@ -1,0 +1,45 @@
+--- Google Play Store ---
+(Max 500 characters)
+
+What's New in PPPlayer v2.0.1:
+- Support for Dutch, Romanian, Thai, Ukrainian, Urdu, & Vietnamese.
+- Direct playback actions on artist, genre, and search cards.
+- Redesigned UI cards with dynamic icons and colors.
+- Added Instagram, Facebook, and LinkedIn links in About dialog.
+- Routine maintenance and repository cleanup.
+
+Thank you for using PPPlayer! If you have any feedback, please leave a review.
+
+--- Microsoft Store ---
+
+Release Notes for PPPlayer v2.0.1:
+
+This is a feature and maintenance release that brings new languages and quality of life improvements.
+
+Added:
+- Support for Dutch, Romanian, Thai, Ukrainian, Urdu, and Vietnamese localizations.
+- Direct top tracks playback on artist cards.
+- Direct playlist and album playback on hover overlays.
+- Instagram, Facebook, and LinkedIn links to the about dialog.
+
+Changed:
+- Redesigned genre and search category cards with dynamic hash-based colors and icons.
+- Updated action buttons in the about dialog.
+- Routine maintenance and removal of temporary debugging scripts.
+
+We are constantly working to improve PPPlayer. Enjoy your music and videos!
+
+--- GitHub / Generic Release ---
+
+## [2.0.1] - 2026-09-21
+
+### Added
+- Added support for Dutch, Romanian, Thai, Ukrainian, Urdu, and Vietnamese localizations.
+- Added direct top tracks playback on artist cards in the artist and home screens.
+- Added direct playlist and album playback to the AlbumCard hover overlay.
+- Added Instagram, Facebook, and LinkedIn links to the about dialog.
+
+### Changed
+- Redesigned genre and search category cards with dynamic hash-based colors and icons.
+- Updated action buttons in the about dialog.
+- Routine maintenance and removal of temporary debugging and development scripts from the repository to reduce clutter.
